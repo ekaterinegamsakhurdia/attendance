@@ -1,0 +1,98 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { buildOffice, fallbackLayout } from './office.js';
+
+const row = (o) => ({ seat: 1, role: 'employee', department_id: null, department_name: null, present: false, employee_id: null, first_name: null, last_name: null, avatar_path: null, work_mode: null, overtime: false, ...o });
+const here = (id, first, o) => row({ present: true, employee_id: id, first_name: first, last_name: 'X', work_mode: 'office', ...o });
+const room = (id, name, x, y, w, h, extra = {}) => ({ id, name, x, y, w, h, department_ids: [], ceo_seat: null, ...extra });
+
+const layout = [
+  room('r1', 'Studio', 0, 0, 4, 4, { department_ids: ['d1', 'd2'] }),
+  room('r2', 'Boss', 4, 0, 4, 2, { ceo_seat: 2 }),
+  room('r3', 'Kitchen', 8, 0, 2, 2),
+];
+
+test('people land in the room that holds their department or CEO seat', () => {
+  const rows = [
+    here('e1', 'Ann', { department_id: 'd1' }),
+    row({ department_id: 'd1' }),
+    row({ department_id: 'd2' }),
+    here('e2', 'Bob', { department_id: 'd2', work_mode: 'online' }),
+    row({ role: 'ceo', seat: 1 }),
+    here('c2', 'Cee', { role: 'ceo', seat: 2 }),
+  ];
+  const { rooms, summary } = buildOffice(rows, layout);
+  const studio = rooms.find((r) => r.title === 'Studio');
+  assert.equal(studio.seats, 4);
+  assert.deepEqual(studio.people.map((p) => p.first_name), ['Ann', 'Bob']);
+  assert.equal(studio.people[1].mode, 'online');
+  const boss = rooms.find((r) => r.title === 'Boss');
+  assert.equal(boss.seats, 1);
+  assert.equal(boss.people[0].first_name, 'Cee');
+  assert.deepEqual(summary, { office: 2, online: 1, present: 3, seats: 5, away: 2 });
+});
+
+test('without an "everybody else" room, developers, teams without a room and CEOs without a seat room are not drawn', () => {
+  const rows = [
+    here('dev', 'Dev', { role: 'developer' }),
+    here('x', 'Xena', { department_id: 'other' }),
+    here('y', 'Yan', { role: 'ceo', seat: 1 }),
+    row({ department_id: null }),
+  ];
+  const { rooms, summary } = buildOffice(rows, layout);
+  assert.equal(rooms.reduce((n, r) => n + r.seats, 0), 0);
+  assert.deepEqual(summary, { office: 0, online: 0, present: 0, seats: 0, away: 0 });
+});
+
+test('rooms come back in reading order with their place, size and whether anyone sits there', () => {
+  const { rooms } = buildOffice([], [layout[2], layout[1], layout[0]]);
+  assert.deepEqual(rooms.map((r) => r.title), ['Studio', 'Boss', 'Kitchen']);
+  assert.deepEqual([rooms[0].x, rooms[0].y, rooms[0].w, rooms[0].h], [0, 0, 4, 4]);
+  assert.deepEqual(rooms.map((r) => r.sits), [true, true, false]);
+});
+
+test('an empty plan draws nothing', () => {
+  const { rooms, summary } = buildOffice([here('e1', 'Ann', { department_id: 'd1' })], []);
+  assert.deepEqual(rooms, []);
+  assert.equal(summary.present, 0);
+});
+
+test('the built-in plan is one open office for everybody, plus the first two CEO seats', () => {
+  const rows = [
+    row({ department_id: 'a', department_name: 'Sales' }),
+    row({ department_id: 'b', department_name: 'Support' }),
+    row({ department_id: 'a', department_name: 'Sales' }),
+    row({ role: 'ceo', seat: 3 }),
+  ];
+  const plan = fallbackLayout();
+  assert.equal(plan.length, 3);
+  assert.equal(plan.find((r) => r.name === 'Open office').everyone_else, true);
+  assert.equal(plan.find((r) => r.name === 'CEO 1').ceo_seat, 1);
+  assert.equal(plan.find((r) => r.name === 'CEO 2').ceo_seat, 2);
+  // departments and a third CEO that were never placed still land in the open office
+  assert.equal(buildOffice(rows, plan).summary.seats, 4);
+});
+
+test('people without a room of their own go to the "everybody else" room, developers never do', () => {
+  const rows = [
+    here('x', 'Xena', { department_id: 'other' }),
+    here('n', 'Nia', { department_id: null }),
+    here('dev', 'Dev', { role: 'developer' }),
+    here('e1', 'Ann', { department_id: 'd1' }),
+  ];
+  const plan = [...layout, room('r4', 'Open', 0, 4, 4, 2, { everyone_else: true })];
+  const { rooms } = buildOffice(rows, plan);
+  assert.deepEqual(rooms.find((r) => r.title === 'Open').people.map((p) => p.first_name), ['Nia', 'Xena']);
+  assert.deepEqual(rooms.find((r) => r.title === 'Studio').people.map((p) => p.first_name), ['Ann']);
+  assert.equal(rooms.find((r) => r.title === 'Open').sits, true);
+});
+
+test('the floor is trimmed to the rooms: no empty strip on the right or at the top', async () => {
+  const { fitFloor } = await import('./office.js');
+  const fit = fitFloor([room('a', 'A', 2, 3, 4, 4), room('b', 'B', 6, 3, 4, 2)]);
+  assert.equal(fit.cols, 8);
+  assert.equal(fit.rows, 4);
+  assert.deepEqual(fit.rooms.map((r) => [r.x, r.y]), [[0, 0], [4, 0]]);
+  assert.deepEqual(fitFloor([]), { rooms: [], cols: 1, rows: 1 });
+  assert.equal(fitFloor([room('a', 'A', 0, 0, 12, 2)]).cols, 12);
+});

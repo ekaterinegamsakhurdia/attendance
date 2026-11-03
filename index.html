@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="%BRAND_THEME_DARK%" />
+    <title>%BRAND_APP_TITLE% | %BRAND_PRODUCT%</title>
+    <meta name="description" content="%BRAND_DESCRIPTION%" />
+    <meta name="application-name" content="%BRAND_APP_TITLE%" />
+    <meta name="apple-mobile-web-app-title" content="%BRAND_SHORT_NAME%" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="%BRAND_NAME%" />
+    <meta property="og:title" content="%BRAND_APP_TITLE%" />
+    <meta property="og:description" content="%BRAND_SHARE_LINE%" />
+    <meta property="og:locale" content="en_US" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="%BRAND_APP_TITLE%" />
+    <meta name="twitter:description" content="%BRAND_SHARE_LINE%" />
+    <!--site-->
+    <link rel="canonical" href="%SITE_URL%/" />
+    <meta property="og:url" content="%SITE_URL%/" />
+    <meta property="og:image" content="%SITE_URL%/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="%BRAND_APP_TITLE%" />
+    <meta name="twitter:image" content="%SITE_URL%/og-image.png" />
+    <!--/site-->
+    <script>
+      // No address was set at build time: the page names itself as the canonical address (search engines run this script).
+      if (location.pathname === '/' && !document.querySelector('link[rel="canonical"]')) {
+        var c = document.createElement('link');
+        c.rel = 'canonical';
+        c.href = location.origin + '/';
+        document.head.appendChild(c);
+      }
+    </script>
+    <!--json-ld-->
+    <script>
+      // Pick the theme before the first paint (same rules as src/lib/theme.js): a saved choice, else the device setting.
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('%BRAND_SLUG%-theme'); } catch (e) {}
+        if (t !== 'light' && t !== 'dark') t = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', t);
+        var m = document.querySelector('meta[name="theme-color"]');
+        if (m) m.setAttribute('content', t === 'light' ? '%BRAND_THEME_LIGHT%' : '%BRAND_THEME_DARK%');
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root">
+      <main class="la-seo">
+        <h1>%BRAND_HEADLINE%</h1>
+        <p>%BRAND_SEARCH_SUMMARY%</p>
+        <ul>
+          <li>Clock in and out from the office or online</li>
+          <li>Book vacation, unpaid leave and days off, with approval by your department head</li>
+          <li>Team calendar with public holidays, birthdays and work anniversaries</li>
+          <li>Timesheets and reports for managers</li>
+        </ul>
+        <noscript><p>%BRAND_APP_TITLE% needs JavaScript. Please turn it on and reload the page.</p></noscript>
+      </main>
+    </div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

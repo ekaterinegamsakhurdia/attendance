@@ -1,0 +1,257 @@
+# Attendance System (white-label template)
+
+Employee attendance tracker. React 19 + Vite on the front end, Supabase (Postgres, Auth, Edge Functions, Storage) as the backend.
+
+> **This is a company-neutral template.** The name, colours and logo live in `src/config/brand.js`, `src/styles/brand.css`
+> and `public/`; everything a company enters about itself (departments, job roles, hours, holidays, floor plan, people) is
+> set up inside the running app. Start with **[TEMPLATE.md](TEMPLATE.md)**.
+
+**Roles:** `employee` (clock in/out, own history, own leaves and the calendar), **department head** (an employee who also gets a read-only view of their own department and decides their department's leave requests), `ceo` (everything below) and `developer` (everything the CEO can do, plus account management and editing any data, see *Developer account*).
+
+**Departments** are created by the company in the app (each has one head and employees). A department can have **job roles** (for example Designer, Operator); a person in such a department must have one.
+
+| CEO tab | What it does |
+|---|---|
+| Today | Team status for today (CEOs and developers included), the CEO's own clock-in/out |
+| Leaves | Requests waiting for a decision (approve / reject with a note), every request of the year with filters, cancel with a reason; a developer can also add, edit, delete one leave, or tick several (or all shown) and delete them together |
+| Calendar | **Month** view (public holidays, everyone's leaves, birthdays and work anniversaries; each layer can be switched off, department filter) and the **Team grid**: dates across, every person down, a coloured square per leave day |
+| Birthdays & Anniversaries | Upcoming birthdays and work anniversaries (30 days / 3 months / 12 months), plus who is still missing a date |
+| Analytics | Team count, average age, average length of service, people on leave today; used / left days per person and per leave type; per-person allowance; CSV |
+| My leaves | The CEO's own leave requests (approved by another CEO or the developer) |
+| Reports | Date-range / department / employee report, CSV export, correct or add records (reason required, audited) |
+| Employees | Add (saved without sending any e-mail; the row stays faded with a *Not invited* badge), **Send invitation** whenever you want, then **Send login link** (re-sends the invitation, or a password-reset link if the person already has a password), department, job role, registered devices, delete. **Click a name to open the person's card**: details, leave days and the *Edit details* form are all there (no separate Edit / Details buttons) |
+| Settings | Company name, time zone, work hours, **yearly leave allowances**, **public holidays**, **clock-in security**, **company networks**, department heads, job roles |
+| Audit Log (*Important changes*) | Only the important entries: people added or removed, account / department / job-role changes, networks, company settings, attendance corrections and cancelled leaves. Routine activity and anything a developer did is **not** shown to CEOs (enforced by the database) |
+
+**CEOs and developers clock in and out like everyone else** (Today tab) and appear in the daily overview, reports, CSV exports, corrections and auto clock-out. In reports they are listed under "CEOs and developers (no department)"; the CSV has an *Account type* column (last column, so existing column positions did not change). **CEOs see everyone's attendance, the developer's included**; they can correct CEO and employee records, but a developer's account and records are read-only for them. Department heads still only see their own department.
+
+**Adding an employee always needs a department**, and a **job role** whenever that department has job roles. The database enforces this, not just the form. Moving someone to another department asks for the new job role in the same step.
+
+A department head sees an extra **"<Department> team"** tab: today's status and a date-range report/CSV for their own department only. They cannot edit anything.
+
+### My profile and photos
+
+Everyone (employee, department head, CEO, developer) has a **My profile** button (the name chip in the top bar, and *Edit profile* on the employee page). There they can add, change or remove their own **profile picture** (cropped and shrunk in the browser to a 320 px JPEG) and edit their own **first name, last name and birth date**. Nothing else is editable by the employee: the database function `update_my_profile()` only accepts those three fields and the table still has no client write policies. Photos live in the public Storage bucket `avatars` under `<login id>/<random name>.jpg`; the app stores the path in `employee_profiles.avatar_path` through `set_avatar()`. Only the owner or a developer can write to a folder, so a CEO cannot change anyone else's picture. Deleting an employee also removes their photos. Self-edits are written to the audit log and are shown to the developer, not to CEOs.
+
+### Leaves, calendar and holidays
+
+**Allowances (per person, per calendar year):** 24 vacation days, 15 unpaid leave days, 4 days off. The three numbers are company defaults under *Settings → Company Settings*; a CEO or developer can give one person a different number under *Analytics → Allowance* or in the person's profile card (**Adjust days**, with **−** and **+** buttons for removing and adding days; clear the field to go back to the default).
+
+**Requesting.** Every account (employee, department head, CEO, developer) has a **Book time off** page (type, start date, end date, comment, **approved by**, **replacement**, with a live working-day count and the balance) and a **My leaves** tab with its balances and the upcoming and past leave cards.
+
+* **Approver:** a plain employee picks their department head, a CEO, or the head of a department marked **Approves all leaves**. Any CEO, any developer, the department head or that company-wide approver can decide the request; nobody can decide their own. A department head's own leave goes to a CEO, a CEO's or developer's leave to another CEO or developer.
+* **Replacement:** a colleague of the same department who takes over the tasks. It is required whenever the department has colleagues, and it cannot be someone who is on approved leave in the same dates. CEOs and developers have no replacement.
+* **Counting:** days are **working days** (Monday to Friday, public holidays excluded). Pending requests already reserve their days, so nobody can request more than they have. A request over New Year is split between the two years. Allowances are per calendar year and **do not carry over**.
+* **Decision:** CEOs, developers and department heads have a **To approve** tab (with a badge) of cards showing the person, dates, working days, the balance left after the request, replacement and comment. **Approve is one click**; Reject asks for an optional note. The full list with filters, cancel and (developer) edit/delete stays under **Leaves**.
+* **Decision details:** approve or reject with an optional note. An approved leave appears in the calendar. The owner can cancel a pending leave, or an approved one that has not started; after that only a CEO, developer or the department head can cancel it (with a reason, written to the audit log). Cancelling gives the days back.
+* **Developer:** can add, edit (any field, any status, ignoring balances) and delete any leave, edit allowances, birth and start dates, holidays and accounts. CEOs have read-only access to developer data (leaves, allowances, dates).
+
+**Calendar tab** (everyone): public holidays are always shown. An employee also sees their own leaves; a department head the leaves of their department; a CEO or developer everyone's leaves plus **birthdays and work anniversaries**. Month view with an agenda list, usable on a phone.
+
+**Dark / light mode**: the round sun / moon button (top bar, or top right on the sign-in page) switches the look. *Dark* is a deep-blue style; *Light* a soft grey page with white cards. The palette is in `src/styles/brand.css`. The first visit follows the device setting; once someone presses the button the choice is remembered on that device (`localStorage` key `{slug}-theme`, the slug is set in `src/config/brand.js`). It is applied before the first paint, so there is no flash. Front-end only: no database or function change.
+
+**A head who approves for everybody.** In *Settings → Departments* a CEO or developer can tick **Approves all leaves** for a department (off for every department until switched on). Its head is then offered as approver to every employee and every other department head, sees and decides every employee's leave (To approve, Leaves, Calendar, Team grid, balances), and can cancel one with a reason. Nothing else changes for them: CEOs, developers and their data stay out of reach, nobody decides their own leave (a head's own leave goes to a CEO or another company-wide approver), and attendance records, reports, birthdays and settings stay with the CEO or the head of the person's own department. Untick the box and the extra reach ends at once.
+
+**Clock-in first.** Every account opens on its attendance page (My attendance for employees and heads, Today for CEOs and developers) with the **My Attendance Today** card first: greeting, the time, and one big **Clock In** button (or **Clock Out** once clocked in), then the day's details. Pressing Clock In shows the brand loop (BrandMark.jsx) drawing itself and running around while the clock-in is saved (at least 2.4 s), then *"You're clocked in for today."* with a friendly line; *Let's go*, Esc or 6.5 seconds close it. A failed clock-in simply shows the reason. People who prefer reduced motion get the finished loop without the animation. The **logo** in the top-left corner is a link: it reloads the app and lands on that attendance page.
+
+**Team grid** (CEO, developer and department heads; employees do not see it): the *Team grid* switch in the Calendar tab shows one row per person (grouped by department) and one column per day of the month. A **green** square is vacation, **red** a day off, **grey** unpaid leave, **blue** a public holiday (for everybody). A leave that is still waiting for approval is striped. Weekends and holidays inside a leave are not leave days, so they are not coloured as leave; the V / UL / DO columns count approved leave days. A CEO or developer can filter by department; a head only gets their own department (the database decides who is returned). Hover a square for the details.
+
+**Birthdays, anniversaries, analytics.** Birth date and start date are entered under *Employees → click the name → Edit details* (or in the add form, or in the profile card) and are visible only to the person, CEOs and developers. Averages only include people whose dates are filled in. 29 February birthdays are celebrated on 28 February in non-leap years; the first anniversary is the first full year.
+
+**Public holidays.** None are pre-filled: *Settings → Public Holidays* lets a CEO or developer add, rename and remove days. A **Georgian holiday pack** (New Year's Day and 2 January, Orthodox Christmas, Epiphany, Mother's Day, Women's Day, National Unity Day, Orthodox Good Friday to Easter Monday, Victory Day, St Andrew's Day, Independence Day, Mariamoba, Svetitskhovloba, Giorgoba; Orthodox Easter is calculated) exists in the database (`add_georgian_holidays(year)`) and its button is switched on with `holidayPacks.georgia` in `src/config/brand.js`. Holidays that fall on a weekend are **not** moved to another day. Check the list against the official government calendar each December: governments can add or move days off, and those are entered by hand.
+
+### Reports, timesheet and profile cards
+
+**Reports** has three views that share one filter bar (date range with ◀ ▶ arrows, *This month*, **Employees**, **Teams**, **Approvers**, **Leave types**, and a **Status** filter in the leave view):
+
+* **Timesheet** (default): a row per person, a column per day with the weekday letters and day numbers, today in bold, public holidays in blue, weekends in grey. Cells show **hours worked** where there is an attendance record (an outline means still clocked in); approved leave is tinted green (**V** vacation), grey (**UL** unpaid leave) or red (**DO** day off); a requested, not yet approved leave is dashed amber; a past working day with no record is an amber **0**; today and later working days show the **scheduled** hours in grey. The right-hand columns total **Hrs**, **V**, **UL** and **DO** (approved working days). *Name ↑* sorts, *Download* gives a CSV. Ranges are limited to 93 days.
+* **Records:** the clock-in / clock-out list with corrections and CSV (as before).
+* **Leaves:** every leave request touching the dates, with a summary of approved working days per type and a CSV.
+
+Scheduled hours per person are *Working hours per day* from the profile, otherwise the company work day (end time minus start time). A person's approver is the one set in their profile, else the head of their department, else any CEO / developer; the **Approvers** filter follows that rule. Department heads get the same reports for their department, read-only, without the Teams / Approvers filters (they cannot read profiles, so company hours are used).
+
+**Profile card.** In every table and the timesheet, a CEO or developer can click a person's name to open their card: email, position, approver, team, office, permission (User / Department head / CEO / Developer), employment date, service length (years, months, days), country, timezone, date of birth, working days and hours, the **left / used / pending / yearly allowance** per leave type (year selector, **Adjust days**), upcoming planned and approved leaves and leaves already taken. **Edit details** changes office, country, hours, approver and the two dates. CEOs can open and read the developer's card but not change it; the developer can change everyone's.
+
+### Developer account
+
+A developer is the technical owner of the app. They get their own **Developer Dashboard** with:
+
+| Tab | What a developer can do |
+|---|---|
+| Accounts | Add CEOs, developers and employees; change an account's type (employee / CEO / developer); edit name, number, department, job role, active flag and **login email**; delete accounts, including CEOs |
+| Structure | Add, rename, deactivate and **delete** departments and job roles; set department heads |
+| Settings | Company settings, clock-in security switches, office networks |
+| Leaves / Calendar / Birthdays / Analytics / My leaves | Same as the CEO, plus **add, edit and delete any leave**, change anyone's allowance, birth and start dates |
+| Today / Reports | Same as the CEO |
+| Audit Log | **Everything**, including developer actions and routine activity, with a filter (*Everything*, *Important only (what CEOs see)*, *Made by developers*, people and structure, attendance, leaves, system) |
+
+Rules: CEOs can see developer accounts but **cannot change them** (they show as *Protected*; the database refuses edits, deletion, account-type changes and removing their devices); a developer cannot change their own type, deactivate or delete themselves, so there is always at least one; developers belong to no department but clock in like everyone else; only a developer can correct a developer's attendance. A department or job role can only be deleted when nobody belongs to it. Everything is written to the audit log; the CEO reads only the important, non-developer entries, the developer reads all of it.
+
+**Create the first developer** once, after applying the migrations: create the login in *Authentication → Users → Add user* (tick *Auto Confirm User*), then edit and run `supabase/tools/create_first_developer.sql` in the SQL editor. Use an email that is not the CEO's. All other accounts are then created from the dashboard.
+
+### Landing page, sign-in and motion
+
+Signed-out visitors first see a **public landing page** at `/` (all its words come from `src/config/brand.js`; hero, a seamless ticker, three facts, "A day with us", "Who it is for", a closing call and a footer). **Log in** opens the sign-in page at `/#login` (a hash, so the host needs no extra rewrite rule; the browser back button and a refresh both work). Signing in clears the hash; signing out returns to the sign-in page. Signed-in people never see the landing page: `/` is their attendance page.
+
+The motion language is the **infinity loop** (things draw themselves, travel around and return without a jump). The only signature moves are: the loop that draws itself and keeps a comet running along it (hero, sign-in, loader, closing call), a seamless ticker, masked headline reveals, hovers that ease out and back, and a small loop that follows the mouse. Inside the dashboards the motion stays calm.
+
+- **Tune it in one place:** `src/styles/motion.css` holds every duration, easing, distance, stagger and the cursor lag as `--m-*` variables. Change a value there and everything follows.
+- **Colours are not touched:** the new styles use only the existing tokens (and tints made from them with `color-mix`). Dark stays the original look; light follows the poster.
+- **Accessibility:** with *reduce motion* on, nothing moves (the loop is simply drawn, the ticker is a static wrapped list, reveals are off and the cursor loop is not created). The cursor loop is mouse-only (never on touch) and sits on top of the normal pointer. The full-screen menu is a modal dialog (Escape closes, Tab stays inside, focus goes back to its button). There is a *Skip to content* link.
+- **Phones:** the app's tab strip scrolls sideways, so a button at its right end (*All sections*) opens the same full-screen menu listing every section.
+- **Speed:** fonts are now **self-hosted** (no request to Google Fonts, nothing render-blocking), the code is split so a visitor downloads only the landing page and a signed-in person only their own dashboard, and the loader appears only if loading really takes a moment (it never delays anything).
+
+### Office map (floor plan)
+
+The **Office today** map is the first thing on the **Today** tab of CEOs and developers, and on the **My attendance** tab of employees and department heads (it is not a tab of its own). It is a floor plan of rooms. Out of the box it has three: an **Open office** that holds everybody who has no room of their own (so every department created later appears at once), and one room each for **CEO 1** and **CEO 2**. A developer redraws it with *Edit floor plan*: add, rename, move, resize and delete rooms, and choose who sits in each (departments, a CEO seat, or *everybody else*). Developers themselves are not drawn. Each person who is **clocked in right now** floats as their profile picture in their room. People who work from home (an online day) are **see-through** with a small house badge. Hovering over (or tapping, or focusing with the keyboard) a bubble shows the name and *In the office* / *Online, working from home* (and *Working overtime*). A bubble appears when the person clocks in and disappears when they clock out; the map refreshes every 15 seconds and when the page is opened again. People who are not clocked in are **not named**: they are only drawn as empty seats, so colleagues cannot see who is away, ill or on leave (the database function `office_today()` returns no name, id or photo for them).
+
+**Responsive.** The plan is a 12-column grid (one row is 56 px, rows grow when a room is crowded). On a wide screen the rooms sit exactly where the plan puts them; on a tablet (up to 900 px) they flow two to a row in reading order (top to bottom, left to right), wide rooms taking the whole row; on a phone (up to 560 px) they stack one under the other.
+
+**Editing the floor plan (developers only).** A developer sees **Edit floor plan** on the map. The editor shows every room on a grid:
+* **Move** a room by dragging it, **resize** it by dragging its bottom-right corner. On a touch screen use the grip at the top right of the room and the corner (a finger on the room itself still scrolls the page). Rooms snap to whole cells, never overlap and cannot leave the floor; a room is at least 2 x 2 cells.
+* **Keyboard:** select a room (Tab to it), then the arrow keys move it and Shift with the arrow keys resizes it.
+* **Settings box** for the selected room: its **name** (up to 40 characters), exact **column, row, width and height**, **who sits here** (tick departments, pick a CEO seat; ticking a department that is in another room moves it) and **Delete this room**. A room with nobody ticked is a plain room (a meeting room, a kitchen) and is drawn as just a name.
+* **Add room** puts a new room in the first free place. Up to 40 rooms.
+* Nothing is stored until **Save floor plan**; **Cancel** (after a confirmation) throws the changes away. **Restore original plan** brings the six original rooms back at once.
+
+Everybody signed in can see the saved plan; only a developer can change it (database rule, not only a hidden button). Every save and every restore is written to the audit log (developers only, with the old and the new plan). If migration 15 has not been run yet the map still shows the six original rooms, and developers are told which update to run.
+
+### Online work days and overtime
+
+**Online work day.** Before clocking in, an employee (or CEO / developer) chooses **At the company** or **Online**. An online day can be clocked in and out from any network (Face ID / fingerprint still applies when it is on). It is recorded on the attendance record (`work_mode = 'online'`), written to the audit log (developers read it), shown in its own **violet** colour in the Calendar (the person, their department head, CEOs and developers; layer *Online work days*), as an **Online** pill in *Today*, in *Reports → Records* (and the CSV column *Work mode*) and in the timesheet (violet cell, **ON** column). The mode can only be chosen when clocking in; it cannot be changed afterwards. A CEO or developer can switch the feature off for everyone in **Settings → Clock-in Security → Allow online work days**.
+
+**Overtime.** After the company end time (*Settings → work hours*, 19:00 by default) a person who worked **at the company** sees **Log overtime** on the clock-in card. It works only on the company network (when that rule is on) and only if the day is still open or was closed automatically at the end time. It cancels the automatic clock-out; when the person then clocks out (company network, Face ID if on) the clock-out time is the real one and `overtime_minutes` = clock-out minus the end time (for someone who arrived after the end time, minus the arrival). Worked time includes the overtime. A finished overtime is written to the audit log (*Overtime worked*, an **important** entry, so CEOs see it); it also shows in *Today*, *Records* (summary, pill, CSV *Overtime* columns), the timesheet (dot on the cell, **OT** column) and the person's history. If somebody starts overtime and never clocks out, the automatic clock-out closes the day at midnight with the original end time and counts no overtime (*Overtime not ended*); a CEO can correct the record in Reports and the minutes are recalculated. No overtime on an online day.
+
+### Clock-in security
+
+Two switches in **Settings → Clock-in Security** (both **off** after the migration so nobody is locked out):
+
+1. **Require the company network.** Clock in/out is refused unless the request comes from an IP the CEO listed under *Company Networks*. Logging in and viewing history work from anywhere. The CEO can add the network they are on with one click.
+2. **Require Face ID / fingerprint.** Every clock-in and clock-out needs a fresh check on a registered device (WebAuthn / passkey). The employee registers a phone or laptop once (re-entering their password), max 3 devices; the CEO can remove devices.
+
+**Company networks have no limit.** Add as many as you need under *Company Networks*: one at a time, with *Add my current network*, or paste a whole list under *Add many at once* (one per line: `Main office, 203.0.113.7`, ranges such as `198.51.100.0/28` and IPv6 prefixes work too; lines that fail are reported with their line number and the rest are still added). Long lists get a search box and paging, and labels can be renamed. The app recognises a network by its **public IP address**, not by the wifi name, so each office, branch or home connection needs its own entry.
+
+Together with email + password at login, that is the full clock-in path: password → company network → Face ID / fingerprint. The CEO is held to the same rules.
+
+## How it is secured
+
+* The browser can only **read**. Row Level Security lets employees read their own rows and the CEO read everything; there are no client write policies on `employees`, `attendance` or `audit_logs`.
+* Clock-in/out go through the `clock_in()` / `clock_out()` database functions: **time, work date, worked minutes and IP come from the server**, never from the browser.
+* Corrections go through `ceo_save_attendance` / `ceo_delete_attendance`, which require a reason and write to `audit_logs`.
+* Creating, inviting and deleting employees happens in Edge Functions that verify the caller's JWT **and** that they are an active CEO (`supabase/functions/_shared/common.ts`).
+* Employee deletion order is deactivate → delete login → delete row, so a failure at any step is retryable and never leaves a working login behind. Attendance history is kept, with the employee's name snapshotted on each row.
+* The network rule is enforced **in the database** (`assert_clock_allowed`), using only the `cf-connecting-ip` header that Supabase's edge sets. The spoofable `x-forwarded-for` is ignored and the check fails closed if the header is missing.
+* The biometric check is a WebAuthn step-up: the `webauthn` Edge Function verifies the signed challenge and issues a one-time token (valid 2 minutes) that `clock_in(p_verification)` / `clock_out(p_verification)` consume. Skipping the function does not help, the database refuses without the token.
+* Forgotten shifts are closed automatically at the company's work-end time (`auto_clock_out()`, scheduled with pg_cron every 10 minutes).
+
+## Setup
+
+For a new company the short version is in [TEMPLATE.md](TEMPLATE.md) (part C). In detail:
+
+```bash
+npm ci
+cp .env.example .env.local        # fill in URL + publishable key of the company's own Supabase project
+npm run dev
+```
+
+### Database
+
+1. Create a new Supabase project for the company.
+2. Apply all sixteen migrations in order: `supabase link --project-ref YOUR-REF`, then `supabase db push` (or paste the files into the SQL editor in name order). The first one, `20260101000000_base_schema.sql`, creates the base tables (`departments`, `employees`, `attendance`, `audit_logs`, `company_settings`); the others add the security rules and features:
+   1. `20260101000000_base_schema.sql`, the five base tables.
+   2. `20261007120000_hardening_and_features.sql`, row-level security, server-side clock-in / clock-out, corrections, audit log, company settings.
+   3. `20261007180000_org_structure_network_biometric.sql`, department heads, job roles, allowed networks, WebAuthn tables, network / biometric enforcement (both off until switched on).
+   4. `20261008120000_developer_role.sql`, the `developer` account type and developer-only functions.
+   5. `20261012120000_leadership_attendance.sql`, CEOs read every account and attendance record.
+   6. `20261013120000_leaves_calendar.sql`, leave requests and allowances, public holidays (none pre-filled), birth and hire dates, approval rules.
+   7. `20261014120000_profile_details.sql`, office, country, working hours per day and a chosen approver on the profile.
+   8. `20261016120000_audit_scope.sql`, which audit entries a CEO may read.
+   9. `20261026120000_self_profile_avatars.sql`, profile pictures (`avatars` bucket) and self-service profile editing.
+   10. `20261027120000_online_days_overtime.sql`, online work days and overtime.
+   11. `20261028120000_office_today.sql`, the function behind the office map.
+   12. `20261029120000_audit_employee_create.sql`, add a person first, invite later.
+   13. `20261030120000_leave_imported_usage.sql`, leave days used before the app.
+   14. `20261031120000_dev_delete_leaves.sql`, developers can delete several leaves at once.
+   15. `20261101120000_leave_approver_all.sql`, a department head who approves for everybody.
+   16. `20261102120000_office_rooms.sql`, the editable office floor plan.
+3. The database starts **empty**: no departments, job roles, holidays or people. Everything is entered in the app (see TEMPLATE.md, part B).
+4. If a migration prints `pg_cron is not available`, enable the *pg_cron* extension in the dashboard and run:
+   `select cron.schedule('auto-clock-out', '*/10 * * * *', 'select public.auto_clock_out()');`
+5. Dashboard → Authentication → URL Configuration: the Site URL and redirect list must include `https://YOUR-SITE/set-password`.
+   **Optional but recommended, so e-mail scanners cannot use up the link:** in *Authentication → Email Templates* change the button link of **Invite user** to `{{ .SiteURL }}/set-password?token_hash={{ .TokenHash }}&type=invite` and of **Reset password** to `{{ .SiteURL }}/set-password?token_hash={{ .TokenHash }}&type=recovery`.
+   The bottom of every page shows the running version (commit and date); use it to check that the site has really been updated.
+6. Create the first developer: Authentication → Users → Add user (tick *Auto Confirm User*), then edit and run `supabase/tools/create_first_developer.sql` in the SQL editor.
+
+### Edge Functions
+
+```bash
+supabase secrets set SITE_URL=https://your-site.example        # used for invitation links AND as the CORS origin
+supabase secrets set COMPANY_NAME="Company Name"               # name shown by the phone's Face ID / fingerprint prompt
+# optional: ALLOWED_ORIGINS=https://your-site.example,http://localhost:5173
+supabase functions deploy invite-employee
+supabase functions deploy delete-employee
+supabase functions deploy webauthn
+supabase functions deploy change-email
+```
+
+`SITE_URL` is required: the invite function refuses to run without it instead of falling back to localhost.
+
+**Face ID / fingerprint needs HTTPS** (or `localhost`). The relying-party ID defaults to the hostname of `SITE_URL`; set `WEBAUTHN_RP_ID` only if you serve the app from a subdomain and want one registration to cover the parent domain. Changing the domain later invalidates registered devices.
+
+### First-day checklist (as developer, then CEO)
+
+1. **Settings → Company Settings:** company name, working hours, time zone, leave allowance defaults.
+2. **Departments and job roles:** create them, add the people, pick each department head.
+3. **Settings → Company Networks:** while on the office wifi press *Add my current network*, check that the shown IP is the office's public IP, then turn on **Require the company network** and test a clock-in from the office and from a phone on mobile data (it must be refused).
+4. **Public holidays** for the current year, **birth and start dates** of everybody (the *Birthdays & Anniversaries* tab lists who is missing).
+5. **Office map:** developer → *Edit floor plan* to draw the real office.
+6. Ask employees to open the app on their phone and register it (**My Devices → Register this device**), then turn on **Require Face ID / fingerprint**.
+7. **Search engines:** set `VITE_SITE_URL` (for example `https://your-domain.com`) in the host's environment settings and redeploy, then add the site in Google Search Console and submit `/sitemap.xml`.
+
+## Tests
+
+```bash
+npm run lint
+npm test                              # unit tests: time zone, CSV, calendar, leave, birthday, timesheet, team grid, floor plan and theme helpers
+npm run build
+
+# Database (needs a throw-away Postgres 14+; never run against production)
+PGHOST=localhost PGUSER=postgres bash supabase/tests/run.sh
+```
+
+The database tests mock Supabase's `auth` and `storage` schemas, apply all sixteen migrations, check that a fresh install is empty, and then load **test-only company data** (`supabase/tests/98_test_company_data.sql`: sample departments, job roles and holidays; never part of the template) to assert RLS, department-head scope, job-role integrity, network enforcement (including spoofed headers), one-time biometric tokens, server-side time, corrections, audit entries, auto clock-out, the delete order, CEO / developer rules, the leave rules, profiles, avatars, online days / overtime, the office map and the editable floor plan.
+
+CI (`.github/workflows/ci.yml`) runs lint, unit tests, build, the database tests on Postgres 16 and `deno check` on all four Edge Functions.
+
+## Project layout
+
+```
+src/
+  config/      brand.js (name, wording, colours of the browser bar, holiday packs): the one place for the company's identity
+  styles/      brand.css (palette and fonts), app.css, motion.css, landing.css, editorial.css, floorplan.css
+  services/    supabase client + api.js (all queries / RPC / function calls)
+  hooks/       useAuth (session, profile, settings), useLoad, useMyAttendance, useTheme, useRoute, useReveal, usePointerFine
+  components/  ui primitives, Toast, Modal/ConfirmDialog, AttendancePanel, ClockInCelebration, BrandMark, LoopArt, LoopCursor, LoopLoader, OverlayMenu, DevicesCard, TeamOverview, MonthCalendar, LeaveCard, LeaveRequestModal, DevLeaveModal, EmployeeDatesModal
+  views/       Landing, Login, SetPassword, EmployeeDashboard, HeadTeam, MyLeaves, CalendarView, CeoDashboard, DeveloperDashboard, OfficeMap, FloorEditor, ceo/* tabs
+  lib/         motion, route, time (company time-zone helpers), csv, biometric (WebAuthn), networks, calendar, leaves, celebrations, floorplan, office
+scripts/       make-brand-images.mjs (share image and icons from the brand config)
+supabase/
+  migrations/  base schema + security + features (starts empty)
+  functions/   invite-employee, delete-employee, change-email, webauthn, _shared
+  tests/       SQL tests (+ test-only data)
+  tools/       create_first_developer.sql
+```
+
+## Known limits / ideas
+
+* **The biometric check cannot prove "face" or "fingerprint" specifically.** WebAuthn only tells the server that the device's owner verified themselves (`userVerification: required`); on some phones that can be the device PIN. It does prove a registered device was physically unlocked at that moment.
+* **IPv6:** a network is stored as the /64 prefix, IPv4 as a single address. If the office has a changing public IP, re-add it (or ask the ISP for a fixed one).
+* **Leaves are in working days only**: half days and hours are not supported, and unused days do not carry over to the next year (change the allowance of a person for a year under Analytics if you want to grant extra days).
+* **The optional Georgian holiday pack is a fixed list**, not the government's: if a day off is moved or added by decree, edit *Settings → Public Holidays*.
+* **Verify `cf-connecting-ip`** on your project once (the *Add my current network* button shows the IP the server sees) before turning the network rule on. If the header is ever absent, clock-in is refused, not allowed.
+* A VPN or phone hotspot that exits through the office network would pass the network rule; the rule limits location, it is not a proof of presence.
+* Department heads are read-only. Letting them correct records would be a small addition to the RPCs plus a UI change.
+* The developer account is as powerful as the database allows: protect its password, and consider turning on two-factor authentication for it in Supabase Auth.
+* `is_ceo()` in the database means "CEO or developer" (admin rights); use `is_developer()` for developer-only things.
+* One record per employee per work date (split shifts are not supported).
+* No rate limiting on the Edge Functions beyond Supabase's defaults.

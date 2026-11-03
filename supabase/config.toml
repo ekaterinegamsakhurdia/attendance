@@ -1,0 +1,27 @@
+# verify_jwt is false on purpose: every function verifies the caller itself
+# in _shared/common.ts (requireCeo / requireDeveloper: valid JWT via Supabase Auth + active CEO or developer),
+# which also keeps them working with the newer publishable/secret API keys.
+
+[functions.invite-employee]
+enabled = true
+verify_jwt = false
+import_map = "./functions/invite-employee/deno.json"
+entrypoint = "./functions/invite-employee/index.ts"
+
+[functions.delete-employee]
+enabled = true
+verify_jwt = false
+import_map = "./functions/delete-employee/deno.json"
+entrypoint = "./functions/delete-employee/index.ts"
+
+[functions.webauthn]
+enabled = true
+verify_jwt = false
+import_map = "./functions/webauthn/deno.json"
+entrypoint = "./functions/webauthn/index.ts"
+
+[functions.change-email]
+enabled = true
+verify_jwt = false
+import_map = "./functions/change-email/deno.json"
+entrypoint = "./functions/change-email/index.ts"

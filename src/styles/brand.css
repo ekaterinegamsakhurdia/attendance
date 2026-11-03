@@ -1,0 +1,71 @@
+/* =====================================================================
+   BRAND COLOURS AND FONTS (one file to restyle the whole app)
+   Dark theme is the default (:root); the light theme overrides it below. Change the palette here, keep the
+   names. Colours that are the company blue in other places (a few hex values inside the other style
+   files) are listed in TEMPLATE.md. Keep themeColor / accent in src/config/brand.js in step with these.
+   ===================================================================== */
+:root {
+  /* Colour channels (red, green, blue) behind the translucent colours used all over the CSS.
+     --primary-rgb: the brand blue in the dark theme   --primary-light-rgb: the brand blue in the light theme
+     --tint-rgb: the cool tint of lines and glows       --ink-rgb: dark text colour used for light-theme lines
+     --page-rgb: the dark page colour (frosted bars) */
+  --primary-rgb: 47,140,255;
+  --primary-light-rgb: 21,88,255;
+  --primary-deep-rgb: 26,92,255;
+  --primary-bright-rgb: 59,155,255;
+  --tint-rgb: 120,160,255;
+  --ink-rgb: 10,20,50;
+  --page-rgb: 5,11,24;
+
+  --bg-page: #050B18;
+  --bg-hero-glow: #0A1F4D;
+  --bg-card: #0A1426;
+  --bg-card-inner: #0D1930;
+  --bg-raised: #112140;
+  --border: rgba(var(--tint-rgb),0.12);
+  --border-strong: rgba(var(--tint-rgb),0.25);
+  --primary: #2F8CFF;
+  --primary-deep: #1A5CFF;
+  --primary-soft: rgba(var(--primary-rgb),0.14);
+  --text-heading: #FFFFFF;
+  --text-body: #A9B6CC;
+  --text-muted: #6F7E99;
+  --ok: #6ee7a8;
+  --warn: #fbbf24;
+  --danger: #ff8a8a;
+  --grad-primary: linear-gradient(135deg, #3B9BFF, #1A5CFF);
+  --grad-hero: radial-gradient(ellipse at 70% 40%, #0A1F4D 0%, #050B18 70%);
+  --font: "Noto Sans Georgian", "Inter Variable", Inter, system-ui, sans-serif;
+  --ease: cubic-bezier(.22, 1, .36, 1);
+  --shadow-card: 0 1px 0 rgba(255,255,255,.03) inset, 0 20px 44px -28px rgba(0,0,0,.8);
+  --shadow-pop: 0 24px 60px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(var(--tint-rgb),.1);
+  --glow: 0 8px 28px -6px rgba(var(--primary-rgb),.55);
+}
+
+:root[data-theme="light"] {
+  --bg-page: #F2F2F3;
+  --bg-hero-glow: #E4ECFF;
+  --bg-card: #FFFFFF;
+  --bg-card-inner: #F5F6F9;
+  --bg-raised: #FFFFFF;
+  --border: rgba(var(--ink-rgb),0.09);
+  --border-strong: rgba(var(--ink-rgb),0.18);
+  --primary: #1558FF;
+  --primary-deep: #0A3FE0;
+  --primary-soft: rgba(var(--primary-light-rgb),0.09);
+  --text-heading: #0A0A0B;
+  --text-body: #3B4252;
+  --text-muted: #626B7D;
+  --ok: #0B7D4C;
+  --warn: #B4530A;
+  --danger: #C62828;
+  --coral: #FF8A5B;
+  --coral-soft: rgba(255,138,91,0.16);
+  --accent-text: #0A3FE0;
+  --grad-primary: linear-gradient(135deg, #2F6BFF, #0A3FE0);
+  --grad-hero: none;
+  --font: "Inter Variable", Inter, "Noto Sans Georgian", system-ui, sans-serif;
+  --shadow-card: 0 1px 2px rgba(var(--ink-rgb),.05), 0 26px 50px -30px rgba(20,50,140,.32);
+  --shadow-pop: 0 28px 70px -16px rgba(10,30,100,.35), 0 0 0 1px rgba(var(--ink-rgb),.06);
+  --glow: 0 8px 24px -8px rgba(var(--primary-light-rgb),.55);
+}
